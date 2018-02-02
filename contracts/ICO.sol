@@ -1,10 +1,10 @@
-<!--
+/**
   ______      __           __        __            
  /_  __/___ _/ /__  ____  / /_____  / /_____  ____ 
   / / / __ `/ / _ \/ __ \/ __/ __ \/ //_/ _ \/ __ \
  / / / /_/ / /  __/ / / / /_/ /_/ / ,< /  __/ / / /
 /_/  \__,_/_/\___/_/ /_/\__/\____/_/|_|\___/_/ /_/ 
--->
+*/
 
 pragma solidity ^0.4.18;
 
@@ -16,18 +16,17 @@ contract ICO is Owned {
     uint256 private TOKEN_UNIT = 10 ** uint256(decimals);
     
     // status variable
-    uint256 public softcap = 5500 ether;
+    uint256 public softcap = 2300 ether;    //Includes minimum development and marketing costs
     uint256 public hardcap = 15500 ether;
 
-    uint256 private hidden;
+    uint256 public marketingcap = 300 ether;
 
-    uint256 public bottom = 55 * TOKEN_UNIT;
-    uint256 public top = 354800 * TOKEN_UNIT;
+    uint256 public bottom = 0.15 ether;
+    uint256 public top = 100 ether;
     
-    uint256 public deadline;
+    uint256 public deadline = 10 weeks;
 
     uint256 public price;   // base price
-
     uint256 public ICOTokenAmount = 55000000 * TOKEN_UNIT;
     uint256 public soldToken;
     uint256 public fundedEth;
@@ -48,36 +47,47 @@ contract ICO is Owned {
     }
 
     mapping (address => InvestorProperty) public InvestorsProperty; //asset information of investors
- 
+
     // event notification
-    event ICOStart(uint hardcap, uint deadline, uint ICOTokenAmount, address beneficiary);
+    event ICOStart(uint hardcap, uint deadline, uint tokenAmount, address beneficiary);
     event ReservedToken(address backer, uint amount, uint token);
     event CheckGoalReached(address beneficiary, uint hardcap, uint amountRaised, bool reached, uint raisedToken);
     event WithdrawalToken(address addr, uint amount, bool result);
     event WithdrawalEther(address addr, uint amount, bool result);
- 
-    // modifier
-    modifier ICOClosed() {require (ICOproceeding);_;}
- 
+
     // constructor
-    function ICO (uint256 _startTime, uint256 _deadline, Talentoken _addressOfTokenContract) public {
-        startTime = _startTime;
-        deadline = _deadline;
-        price = hardcap / ICOTokenAmount;
+    function ICO (Talentoken _addressOfTokenContract) public {
+        price = 16050 ether / ICOTokenAmount;
         tokenReward = Talentoken(_addressOfTokenContract);
+
+        startTime = tokenReward.startTime();
+        deadline = startTime + deadline;
     }
  
     // anonymous function for receive ETH
     function () public payable {
         // exception handling before or after expiration
         require (ICOproceeding && now < deadline);
- 
+
+        // limit maximum gas price
+        require (tx.gasprice <= 50000000000 wei);
+
         // received Ether and to-be-sold token
-        uint amount = msg.value;
-        uint token = amount / price;
+        uint256 amount = msg.value;
+        uint256 token = amount / price;
 
         require (token != 0);
-        
+        require (amount >= bottom);
+        require (amount <= top);
+
+        if (fundedEth <= marketingcap) {
+            token = token * 15 / 10;
+        } else {
+            if (fundedEth <= softcap) {
+                token = token * 12 / 10;
+            }
+        }
+
         if (soldToken + token < ICOTokenAmount) {
             InvestorsProperty[msg.sender].payment += amount;
             InvestorsProperty[msg.sender].reserved += token;
@@ -94,6 +104,11 @@ contract ICO is Owned {
             InvestorsProperty[msg.sender].reserved += token;
             soldToken += token;
             fundedEth += amount;
+
+            uint256 returnSenderAmount = msg.value - amount;        // Return the difference when hardcap is exceeded
+            if (returnSenderAmount > 0) {
+                msg.sender.transfer(returnSenderAmount);
+            }
 
             ReservedToken(msg.sender, amount, token);
 
@@ -140,7 +155,13 @@ contract ICO is Owned {
                     bool ok = msg.sender.call.value(amount)();
                     WithdrawalEther(msg.sender, amount, ok);
                 }
-            } 
+            } else {
+                uint256 withdrawnAmount = fundedEth - this.balance;
+                if (withdrawnAmount <= marketingcap) {
+                    bool marketingOk = msg.sender.call.value(marketingcap - withdrawnAmount)();
+                     WithdrawalEther(msg.sender, marketingcap - withdrawnAmount, marketingOk);
+                }
+            }
         } else {
             if (softcapReached) { 
                 uint amount2 = this.balance;
@@ -184,7 +205,8 @@ contract ICO is Owned {
             }
         } else {
             if (InvestorsProperty[msg.sender].payment > 0) {
-                if (msg.sender.call.value(InvestorsProperty[msg.sender].payment)()) {
+                uint returnEth = InvestorsProperty[msg.sender].payment*this.balance/fundedEth;
+                if (msg.sender.call.value(returnEth)()) {
                     InvestorsProperty[msg.sender].withdrawed = true;
                 }
                 WithdrawalEther(

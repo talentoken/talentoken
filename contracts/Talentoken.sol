@@ -1,10 +1,10 @@
-<!--
+/**
   ______      __           __        __            
  /_  __/___ _/ /__  ____  / /_____  / /_____  ____ 
   / / / __ `/ / _ \/ __ \/ __/ __ \/ //_/ _ \/ __ \
  / / / /_/ / /  __/ / / / /_/ /_/ / ,< /  __/ / / /
 /_/  \__,_/_/\___/_/ /_/\__/\____/_/|_|\___/_/ /_/ 
--->
+*/
 
 pragma solidity ^0.4.18;
 
@@ -22,10 +22,24 @@ contract Talentoken is Owned {
     uint256 private TOKEN_UNIT = 10 ** uint256(decimals);
 
     uint256 public totalSupply = 100000000 * TOKEN_UNIT;
+    uint256 public teamSupply = totalSupply/100*10;
+    uint256 public partnerSupply = totalSupply/100*15;
+
+    uint256 public startTime;
 
     // This creates an array with all balances
     mapping (address => uint256) public balanceOf;
     mapping (address => mapping (address => uint256)) public allowance;
+
+    struct Seal { uint256 amount; uint duration; bool withdrawn; }
+
+    Seal public teamSeal = Seal({
+        amount: teamSupply, duration: 540 days, withdrawn: false
+    });
+
+    Seal public partnerSeal = Seal({
+        amount: partnerSupply, duration: 60 days, withdrawn: false
+    });
 
     // This generates a public event on the blockchain that will notify clients
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -38,8 +52,35 @@ contract Talentoken is Owned {
      *
      * Initializes contract with initial supply tokens to the creator of the contract
      */
-    function Talentoken() public {
-        balanceOf[msg.sender] = totalSupply;    // Give the creator all initial tokens
+    function Talentoken(uint _time) public {
+        balanceOf[owner] = totalSupply;                // Give the Talent account tokens
+        startTime = now + _time;
+        sealTokens(teamSeal);
+        sealTokens(partnerSeal);
+    }
+
+    function sealTokens(Seal info) internal {
+        balanceOf[owner] = balanceOf[owner] - info.amount;
+        balanceOf[address(0)] = balanceOf[address(0)] + info.amount;
+    }
+
+    function unsealTokens(Seal info) internal returns (bool) {
+        uint unsealTime = startTime + info.duration;
+        if (unsealTime < now && info.withdrawn == false) {
+            balanceOf[owner] = balanceOf[owner] + info.amount;
+            balanceOf[address(0)] = balanceOf[address(0)] - info.amount;
+            return true;
+        }
+        return false;
+    }
+
+    function withdrawLocked() public onlyOwner {
+        if (unsealTokens(teamSeal)) {
+            teamSeal.withdrawn = true;
+        }
+        if (unsealTokens(partnerSeal)) {
+            partnerSeal.withdrawn = true;
+        }
     }
 
     /**
@@ -156,4 +197,5 @@ contract Talentoken is Owned {
         Burn(_from, _value);
         return true;
     }
+
 }
