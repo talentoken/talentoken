@@ -30,7 +30,7 @@ contract Talentoken is Owned {
     // This creates an array with all balances
     mapping (address => uint256) public balanceOf;
     mapping (address => mapping (address => uint256)) public allowance;
-
+    
     struct Seal { uint256 amount; uint duration; bool withdrawn; }
 
     Seal public teamSeal = Seal({
@@ -40,6 +40,7 @@ contract Talentoken is Owned {
     Seal public partnerSeal = Seal({
         amount: partnerSupply, duration: 60 days, withdrawn: false
     });
+
 
     // This generates a public event on the blockchain that will notify clients
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -82,7 +83,6 @@ contract Talentoken is Owned {
             partnerSeal.withdrawn = true;
         }
     }
-
     /**
      * Internal transfer, only can be called by this contract
      */
@@ -197,5 +197,4 @@ contract Talentoken is Owned {
         Burn(_from, _value);
         return true;
     }
-
 }
