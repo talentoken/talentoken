@@ -14,7 +14,7 @@ import './Talentoken.sol';
 contract ICO is Owned {
     uint8 public decimals = 8;
     uint256 private TOKEN_UNIT = 10 ** uint256(decimals);
-    
+
     // status variable
     uint256 public softcap = 2300 ether;    //Includes minimum development and marketing costs
     uint256 public hardcap = 15500 ether;
@@ -47,7 +47,8 @@ contract ICO is Owned {
     }
 
     mapping (address => InvestorProperty) public InvestorsProperty; //asset information of investors
-
+    mapping (uint => address) public InvestorsAddress;
+    uint index;
     // event notification
     event ICOStart(uint hardcap, uint deadline, uint tokenAmount, address beneficiary);
     event ReservedToken(address backer, uint amount, uint token);
@@ -63,7 +64,7 @@ contract ICO is Owned {
         startTime = tokenReward.startTime();
         deadline = startTime + deadline;
     }
- 
+
     // anonymous function for receive ETH
     function () public payable {
         // exception handling before or after expiration
@@ -89,6 +90,9 @@ contract ICO is Owned {
         }
 
         if (soldToken + token < ICOTokenAmount) {
+            InvestorsAddress[index] = msg.sender;
+            index++;
+
             InvestorsProperty[msg.sender].payment += amount;
             InvestorsProperty[msg.sender].reserved += token;
             soldToken += token;
@@ -100,6 +104,10 @@ contract ICO is Owned {
         } else { 
             token = ICOTokenAmount - soldToken;
             amount = token * price;
+
+            InvestorsAddress[index] = msg.sender;
+            index++;
+
             InvestorsProperty[msg.sender].payment += amount;
             InvestorsProperty[msg.sender].reserved += token;
             soldToken += token;
@@ -119,7 +127,7 @@ contract ICO is Owned {
             CheckGoalReached(owner, hardcap, this.balance, softcapReached, soldToken);
         }
     }
- 
+
     // start when the # of token is more than cap
     function start() public onlyOwner {
         require (price != 0);
@@ -131,7 +139,7 @@ contract ICO is Owned {
             ICOStart(hardcap, deadline, ICOTokenAmount, owner);
         }
     }
- 
+
     // function for check remaining time, diff from cap
     function getRemainingTimeEthToken() public constant returns(uint min, uint shortage, uint remainToken) {
         if (now < deadline) {
@@ -140,7 +148,7 @@ contract ICO is Owned {
         shortage = (hardcap - fundedEth) / (1 ether);
         remainToken = ICOTokenAmount - soldToken;
     }
- 
+
     // withdrawl function for owner
     // available when softcap reached
     function withdrawalOwner() public onlyOwner {
@@ -181,7 +189,37 @@ contract ICO is Owned {
             }
         }
     }
- 
+
+    function withdrawalAllInvester() public onlyOwner {
+         if (now > deadline) {
+            ICOproceeding = false;
+        }
+
+        require (!ICOproceeding);
+
+        if (softcapReached) {
+            for (uint i = 0; i < index; i++) {
+                address investerAddress = InvestorsAddress[i];
+
+                if (InvestorsProperty[investerAddress].reserved > 0 && InvestorsProperty[investerAddress].withdrawed != true) {
+                    tokenReward.transfer(investerAddress, InvestorsProperty[investerAddress].reserved);
+                    InvestorsProperty[investerAddress].withdrawed = true;
+                }
+            }
+        } else {
+            for (uint i2 = 0; i2 < index; i2++) {
+                address investerAddress2 = InvestorsAddress[i2];
+
+                if (InvestorsProperty[investerAddress2].payment > 0 && InvestorsProperty[investerAddress2].withdrawed != true) {
+                    uint returnEth = InvestorsProperty[investerAddress2].payment*this.balance/fundedEth;
+                    if (msg.sender.call.value(returnEth)()) {
+                        InvestorsProperty[investerAddress2].withdrawed = true;
+                    }
+                }
+            }
+        }
+    }
+
     // withdrawl function for investors
     function withdrawal() public {
         if (now > deadline) {
