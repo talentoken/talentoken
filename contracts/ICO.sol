@@ -36,7 +36,6 @@ contract ICO is Owned {
 
     // flags
     bool public softcapReached;
-    bool private hiddenReached;
     bool public hardcapReached;
     bool public ICOproceeding; 
 
@@ -48,7 +47,7 @@ contract ICO is Owned {
 
     mapping (address => InvestorProperty) public InvestorsProperty; //asset information of investors
     mapping (uint => address) public InvestorsAddress;
-    uint index;
+    uint public index;
     // event notification
     event ICOStart(uint hardcap, uint deadline, uint tokenAmount, address beneficiary);
     event ReservedToken(address backer, uint amount, uint token);
@@ -140,6 +139,22 @@ contract ICO is Owned {
         }
     }
 
+    function addStartTime(uint _time) public onlyOwner {
+        startTime += _time;
+    }
+
+    function subStartTime(uint _time) public onlyOwner {
+        startTime -= _time;    
+    }
+
+     function addDeadTime(uint _time) public onlyOwner {
+        deadline += _time;
+    }
+
+    function subDeadTime(uint _time) public onlyOwner {
+        deadline -= _time;    
+    }
+
     // function for check remaining time, diff from cap
     function getRemainingTimeEthToken() public constant returns(uint min, uint shortage, uint remainToken) {
         if (now < deadline) {
@@ -166,9 +181,14 @@ contract ICO is Owned {
             } else {
                 uint256 withdrawnAmount = fundedEth - this.balance;
                 if (withdrawnAmount <= marketingcap) {
-                    bool marketingOk = msg.sender.call.value(marketingcap - withdrawnAmount)();
-                     WithdrawalEther(msg.sender, marketingcap - withdrawnAmount, marketingOk);
-                }
+                    if (withdrawnAmount + this.balance > marketingcap) {
+                        bool marketingOk = msg.sender.call.value(marketingcap - withdrawnAmount)();
+                        WithdrawalEther(msg.sender, marketingcap - withdrawnAmount, marketingOk);
+                    } else {
+                        bool marketingOk2 = msg.sender.call.value(this.balance)();
+                        WithdrawalEther(msg.sender, this.balance, marketingOk2);
+                    }
+                } 
             }
         } else {
             if (softcapReached) { 
@@ -207,12 +227,13 @@ contract ICO is Owned {
                 }
             }
         } else {
+            uint re = this.balance;
             for (uint i2 = 0; i2 < index; i2++) {
                 address investerAddress2 = InvestorsAddress[i2];
 
                 if (InvestorsProperty[investerAddress2].payment > 0 && InvestorsProperty[investerAddress2].withdrawed != true) {
-                    uint returnEth = InvestorsProperty[investerAddress2].payment*this.balance/fundedEth;
-                    if (msg.sender.call.value(returnEth)()) {
+                    uint returnEth = InvestorsProperty[investerAddress2].payment*re/fundedEth;
+                    if (investerAddress2.call.value(returnEth)()) {
                         InvestorsProperty[investerAddress2].withdrawed = true;
                     }
                 }

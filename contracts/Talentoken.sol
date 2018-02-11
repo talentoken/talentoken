@@ -15,7 +15,7 @@ interface tokenRecipient { function receiveApproval(address _from, uint256 _valu
 contract Talentoken is Owned {
 
     // Public variables of the token
-    string public name = "Talentoken";
+    string public name = "Talentoken"; 
     string public symbol = "TAL";
     uint8 public decimals = 8;
 
@@ -40,7 +40,6 @@ contract Talentoken is Owned {
     Seal public partnerSeal = Seal({
         amount: partnerSupply, duration: 60 days, withdrawn: false
     });
-
 
     // This generates a public event on the blockchain that will notify clients
     event Transfer(address indexed from, address indexed to, uint256 value);
@@ -83,6 +82,7 @@ contract Talentoken is Owned {
             partnerSeal.withdrawn = true;
         }
     }
+
     /**
      * Internal transfer, only can be called by this contract
      */
